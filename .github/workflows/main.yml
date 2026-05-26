@@ -1,0 +1,49 @@
+name: hf-keepalive
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send daily prompt
+        env:
+          HF_SPACE_URL: https://yousefsg-chatgpt-api.hf.space
+          API_KEY: gptkey0
+        run: |
+          set -euo pipefail
+
+          prompts=(
+            "Ping"
+            "Hello"
+            "Give me one short tip."
+            "What is one useful fact?"
+            "Summarize the word active."
+          )
+
+          idx=$((RANDOM % ${#prompts[@]}))
+          export PROMPT="${prompts[$idx]}"
+
+          payload=$(python - <<'PY'
+          import json
+          import os
+
+          prompt = os.environ["PROMPT"]
+          data = {
+              "model": "gpt-4o-mini",
+              "messages": [{"role": "user", "content": prompt}],
+          }
+          print(json.dumps(data))
+          PY
+          )
+
+          response=$(curl -fsS --retry 3 --retry-delay 10 \
+            -X POST "$HF_SPACE_URL/v1/jobs" \
+            -H "Authorization: Bearer $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$payload")
+
+          echo "Response: $response"
